@@ -1,0 +1,94 @@
+version: '3.8'
+
+services:
+
+  client:
+    build:
+      context: ./client
+    ports:
+      - "5134:3000"  # Vite par défaut
+    depends_on:
+      - proxy
+    networks:
+      - backend
+
+  server:
+    build:
+      context: ./server
+    command: >
+      sh -c "poetry run python manage.py migrate &&
+             poetry run python manage.py runserver 0.0.0.0:8000"
+    volumes:
+      - ./server:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+      - rabbitmq
+    networks:
+      - backend
+
+  db:
+    image: postgres:13
+    environment:
+      POSTGRES_DB: mydb
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - backend
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "15672:15672"  # UI
+      - "5672:5672"    # AMQP
+    networks:
+      - backend
+
+  celery:
+    build:
+      context: ./server
+    command: poetry run celery -A <your_project_name> worker --loglevel=info
+    depends_on:
+      - server
+      - rabbitmq
+    networks:
+      - backend
+
+  prometheus:
+    image: prom/prometheus
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "3000:9090"
+    networks:
+      - backend
+
+  grafana:
+    image: grafana/grafana
+    ports:
+      - "4000:3000"
+    networks:
+      - backend
+
+  proxy:
+    image: nginx:alpine
+    volumes:
+      - ./proxy/nginx.conf:/etc/nginx/nginx.conf
+    ports:
+      - "80:80"
+    depends_on:
+      - client
+      - server
+      - grafana
+    networks:
+      - backend
+
+networks:
+  backend:
+
+volumes:
+  postgres_data:
+

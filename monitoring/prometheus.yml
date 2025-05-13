@@ -10,3 +10,7 @@ scrape_configs:
     static_configs:
       - targets: ['rabbitmq:15672']
 
+  - job_name: 'celery'
+    static_configs:
+      - targets: ['localhost:8000']
+
